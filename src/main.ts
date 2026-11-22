@@ -563,7 +563,7 @@ function renderMoney() {
 }
 
 function cashChart(r: Result) {
-  const W = 400, H = 150, L = 52, B = 18, T = 10
+  const W = 400, H = 150, L = 74, B = 18, T = 10
   const v = r.cumulative
   const lo = Math.min(0, ...v)
   const hi = Math.max(0, ...v)
