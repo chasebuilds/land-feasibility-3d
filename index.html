@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Land Feasibility 3D</title>
+    <meta name="description" content="First-pass land feasibility in the browser: USGS LiDAR terrain in 3D, slope classes, lot and pad layout, cut and fill, flood and stream checks, and a four-exit pro forma." />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;600&family=Onest:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  </head>
+  <body>
+    <div id="map" aria-label="3D terrain map"></div>
+
+    <header class="bar glass">
+      <div class="brand">
+        <b>Land Feasibility 3D</b>
+        <span>first-pass site check, not engineering</span>
+      </div>
+      <span class="badge" id="parcel-badge">Example boundary, not a real parcel</span>
+      <nav class="views" aria-label="Camera views">
+        <button data-view="overview" class="on">Overview</button>
+        <button data-view="top">Top down</button>
+        <button data-view="low">Low angle</button>
+        <button data-view="section">Along section</button>
+        <button data-view="creek">Nearest creek</button>
+      </nav>
+      <a class="src" href="https://github.com/chasebuilds/land-feasibility-3d">Source</a>
+    </header>
+
+    <aside class="panel glass" id="panel">
+      <nav class="tabs" role="tablist">
+        <button role="tab" data-tab="site" class="on">Site</button>
+        <button role="tab" data-tab="layout">Layout</button>
+        <button role="tab" data-tab="facts">Facts</button>
+        <button role="tab" data-tab="money">Pro forma</button>
+      </nav>
+
+      <section data-pane="site" class="pane on">
+        <div class="row btns">
+          <button id="draw">Draw boundary</button>
+          <button id="finish" hidden>Finish</button>
+          <label class="file">Load GeoJSON<input type="file" id="geojson" accept=".geojson,.json,application/geo+json" /></label>
+          <button id="reset">Example</button>
+        </div>
+        <p class="hint" id="draw-hint" hidden>Click the map to add corners. Finish (or double-click) closes the shape.</p>
+        <p class="status" id="status">Loading terrain...</p>
+        <h3>Slope classes inside the boundary</h3>
+        <div id="slope-table"></div>
+        <h3>Layers</h3>
+        <div class="toggles">
+          <label><input type="checkbox" id="t-slope" checked /> Slope heatmap</label>
+          <label><input type="checkbox" id="t-lots" checked /> Lots and pads</label>
+          <label><input type="checkbox" id="t-houses" checked /> House boxes</label>
+          <label><input type="checkbox" id="t-streams" checked /> Streams (NHD)</label>
+          <label><input type="checkbox" id="t-topo" /> USGS topo map instead of aerial</label>
+        </div>
+        <p class="fine" id="dem-source"></p>
+      </section>
+
+      <section data-pane="layout" class="pane">
+        <div class="inputs">
+          <label>Min lot size (acres)<input type="number" id="i-lot" value="0.5" min="0.1" step="0.05" /></label>
+          <label>Setback from lot lines (ft)<input type="number" id="i-setback" value="25" min="0" step="5" /></label>
+          <label>Pad width (ft)<input type="number" id="i-padw" value="60" min="20" step="5" /></label>
+          <label>Pad depth (ft)<input type="number" id="i-padd" value="50" min="20" step="5" /></label>
+        </div>
+        <div id="layout-summary"></div>
+        <div class="scroll"><table id="lot-table"></table></div>
+        <p class="fine">
+          Lots are squares of the minimum size on a grid turned to north. A pad goes in only where at least 90% of it is under
+          15% slope. Each pad is set at the average ground under it, so cut about equals fill. Road frontage: every lot is
+          assumed to front a new internal road. The road is not drawn, graded or costed here beyond the site work per lot.
+        </p>
+      </section>
+
+      <section data-pane="facts" class="pane">
+        <div id="facts"></div>
+      </section>
+
+      <section data-pane="money" class="pane">
+        <p class="warnline">Every dollar figure here is an illustrative assumption. Replace each one with real quotes and comps.</p>
+        <div class="cases" role="radiogroup" aria-label="Case">
+          <button data-case="downside">Downside</button>
+          <button data-case="base" class="on">Base</button>
+          <button data-case="upside">Upside</button>
+        </div>
+        <p class="fine" id="case-note"></p>
+        <div class="scroll"><table id="exits"></table></div>
+        <div id="exit-detail"></div>
+        <details class="assume" open>
+          <summary>Assumptions</summary>
+          <div id="sliders"></div>
+        </details>
+      </section>
+    </aside>
+
+    <section class="section glass" id="section">
+      <div class="section-head">
+        <b>Cross-section</b>
+        <span class="fine" id="section-note">Ground vs pad grade along the line</span>
+        <button id="draw-section">Draw section line</button>
+        <button id="hide-section" aria-label="Hide cross-section">Hide</button>
+      </div>
+      <div id="section-chart"></div>
+    </section>
+    <button id="show-section" class="glass pill" hidden>Show cross-section</button>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
