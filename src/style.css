@@ -473,3 +473,7 @@ svg .lbl {
 .plan-btns {
   margin: 6px 0 4px;
 }
+.facts .warnline {
+  display: block;
+  margin-top: 2px;
+}

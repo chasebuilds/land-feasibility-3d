@@ -419,7 +419,15 @@ function factsPending() {
 
 async function loadFacts(run: number) {
   const [sw, ne] = bboxOf(state.parcel, 600)
-  const [fz, st] = await Promise.allSettled([floodZones(state.parcel), streamsNear(sw, ne)])
+  const retry = async <T,>(f: () => Promise<T>): Promise<T> => {
+    try {
+      return await f()
+    } catch {
+      await new Promise((r) => setTimeout(r, 1500))
+      return f()
+    }
+  }
+  const [fz, st] = await Promise.allSettled([retry(() => floodZones(state.parcel)), retry(() => streamsNear(sw, ne))])
   if (run !== state.run) return
   flood = fz.status === 'fulfilled' ? fz.value : 'error'
   if (st.status === 'fulfilled') {
