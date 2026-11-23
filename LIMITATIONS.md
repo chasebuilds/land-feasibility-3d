@@ -6,15 +6,17 @@ This is a first-pass screening tool. It helps decide whether a tract is worth pa
 
 - **DEM resolution.** Analysis uses USGS 3DEP at about 2 m cells where it is available. 3DEP coverage and quality vary; some areas only have 10 m or 30 m data, which smooths out benches, ditches and small knobs. The terrarium fallback is coarser still (about 3.8 m at zoom 15 near Pikeville, before resampling) and blends several sources.
 - **Bare earth, not today's ground.** 3DEP is a bare-earth model from the date of the LiDAR flight. Recent grading, fill, spoil piles, strip-mine benches and buildings may not match.
+- The slope benchmark uses smooth synthetic surfaces, so it measures the math, not LiDAR noise or vegetation artifacts in real data.
 - **Slope limits are rules of thumb.** 15% and 25% are common screening breaks, not code. Local rules and the actual house plan decide what is buildable.
 - The 3D surface you see comes from AWS Terrain Tiles; the numbers come from the 3DEP grid. They can differ slightly.
 
 ## Layout and earthwork
 
-- Lots are squares on a north-aligned grid. Real plats follow roads, ridgelines and frontage rules, and usually fit a different count.
+- Lots are squares on one straight grid, turned to the best of a set of angles. Real plats bend with roads and ridgelines and follow frontage rules, and usually fit a different count.
+- The site plan export is a screening sketch drawn from map coordinates. It is not a plat or a survey and has no bearings, distances or monuments.
 - No road, driveway, culvert or utility route is designed or graded. The road frontage note assumes a new internal road.
 - Pads are set at the mean grade under them, so cut about equals fill per pad. There is no shrink or swell factor, no side slopes beyond the pad edge, no rock, no haul-off, no retaining walls and no compaction testing.
-- Cut and fill in cubic yards are rough quantities for comparing options, not bid quantities.
+- Cut and fill in cubic yards are rough quantities for comparing options, not bid quantities. On synthetic tilted planes the pad cut is within 3.9% on average (BENCHMARK.md); real ground adds DEM error on top of that.
 
 ## Site facts
 

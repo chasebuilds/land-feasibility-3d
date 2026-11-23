@@ -1,4 +1,5 @@
-import { CY_PER_M3 } from './geo'
+import type { Grid, Ring } from './geo'
+import { CY_PER_M3, cellsInRing, cellSize, ringArea } from './geo'
 
 export interface Earthwork {
   padElev: number
@@ -29,4 +30,14 @@ export function padEarthwork(elevs: number[], cellArea: number, padElev?: number
     }
   }
   return { padElev: pe, cutM3: cut, fillM3: fill, cutCY: cut * CY_PER_M3, fillCY: fill * CY_PER_M3, maxCut, maxFill }
+}
+
+/**
+ * Pad on a DEM grid. Cells whose centers fall inside the pad rarely cover exactly
+ * its area, so each cell is weighted by pad area / cell count.
+ */
+export function padEarthworkOnGrid(g: Grid, pad: Ring): Earthwork {
+  const cells = cellsInRing(g, pad)
+  const area = cells.length ? ringArea(pad) / cells.length : cellSize(g) ** 2
+  return padEarthwork(cells.map((i) => g.data[i]!), area)
 }

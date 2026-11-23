@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { CY_PER_M3, cellsInRing, distToRing, fromLocal, pointInRing, ringArea, sampleAt, toLocal, type Grid } from './geo'
 import { BUILDABLE, MARGINAL, NODATA, STEEP, classAreas, classify, classifyAll, slopePercent } from './slope'
-import { padEarthwork } from './earthwork'
+import { padEarthwork, padEarthworkOnGrid } from './earthwork'
 import { buildableShare, packLots, rect, type ClassGrid } from './layout'
 import { crossingDepths, profile } from './section'
 import { CASES, EXITS, defaultAssumptions, runExit, type Assumptions } from './proforma'
@@ -91,6 +91,17 @@ describe('earthwork', () => {
     expect(e.fillM3).toBe(0)
   })
 
+  it('weights grid cells by pad area so a tilted pad matches the exact volume closely', () => {
+    const p = plane(40, 40, 2, 0.2, 0)
+    const g: Grid = { ...p, minX: 0, maxY: 0, px: 2, scale: 1 }
+    const pad = rect(20.7, 21.3, 18.3, 15.2)
+    // exact: balanced pad on a 20% plane, cut = depth * slope * width^2 / 8
+    const exact = (15.2 * 0.2 * 18.3 ** 2) / 8
+    const e = padEarthworkOnGrid(g, pad)
+    expect(Math.abs(e.cutM3 - exact) / exact).toBeLessThan(0.12)
+    expect(e.cutM3).toBeCloseTo(e.fillM3, 6)
+  })
+
   it('a flat pad moves no dirt', () => {
     expect(padEarthwork([5, 5, 5, 5], 9).cutM3 + padEarthwork([5, 5, 5, 5], 9).fillM3).toBe(0)
   })
@@ -175,6 +186,17 @@ describe('pro forma', () => {
         expect(r.equity + r.loan).toBeCloseTo(uses, 4)
         expect(r.interest).toBeGreaterThan(0)
       }
+  })
+
+  it('a losing deal: equity pays the loan shortfall and sources still equal uses', () => {
+    const bad = { ...a, homePrice: 50000, loanToCost: 0.8, interestRate: 0.1 }
+    const r = runExit(bad, 'buildHomes')
+    expect(r.profit).toBeLessThan(0)
+    expect(r.shortfall).toBeGreaterThan(0)
+    const uses = Object.values(r.costs).reduce((x, y) => x + y, 0) + r.interest
+    expect(r.equity + r.loan).toBeCloseTo(uses, 4)
+    expect(r.cumulative.at(-1)!).toBeCloseTo(r.profit, 4)
+    expect(r.peakCash).toBeGreaterThanOrEqual(r.equity)
   })
 
   it('downside is worse than base, base worse than upside', () => {

@@ -5,11 +5,12 @@ import mlWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url'
 import './style.css'
 import { loadDem, TERRARIUM_URL } from './dem'
 import { floodZones, streamsNear, FTYPE, type FloodZone, type Stream } from './facts'
-import type { Grid, LngLat, Ring } from './lib/geo'
+import type { Grid, LngLat, Ring, XY } from './lib/geo'
 import { cellSize, cellsInRing, distToSegment, fromLocal, M_PER_FT, ringArea, SQM_PER_ACRE, toLocal } from './lib/geo'
 import { classAreas, LIMITS } from './lib/slope'
-import { packLots, rect, type Lot } from './lib/layout'
-import { padEarthwork, type Earthwork } from './lib/earthwork'
+import { bestLayout, packLots, type Lot } from './lib/layout'
+import { sitePlanSvg } from './lib/siteplan'
+import { padEarthworkOnGrid, type Earthwork } from './lib/earthwork'
 import { crossingDepths, profile } from './lib/section'
 import { CASES, EXITS, defaultAssumptions, runExit, type Assumptions, type CaseKey, type ExitKey, type Result } from './lib/proforma'
 import type { SlopeReply, SlopeRequest } from './slope.worker'
@@ -57,6 +58,9 @@ const state = {
   kase: 'base' as CaseKey,
   exit: 'finishedPads' as ExitKey,
   run: 0,
+  gridAngle: 0,
+  slopeUrl: '',
+  northLots: 0,
 }
 
 maplibregl.setWorkerUrl(mlWorkerUrl)
@@ -114,7 +118,16 @@ function addLayers() {
   map.addLayer({ id: 'streams', type: 'line', source: 'streams', paint: { 'line-color': '#2f8fe0', 'line-width': 3, 'line-opacity': 0.9 } })
   map.addLayer({ id: 'parcel-line', type: 'line', source: 'parcel', paint: { 'line-color': '#ffffff', 'line-width': 3, 'line-dasharray': [2, 1] } })
   map.addLayer({ id: 'lots', type: 'line', source: 'lots', paint: { 'line-color': '#fff4e6', 'line-width': 1.2, 'line-opacity': 0.85 } })
-  map.addLayer({ id: 'pads', type: 'fill', source: 'pads', paint: { 'fill-color': '#f4e3c8', 'fill-opacity': 0.85, 'fill-outline-color': '#6b4a2b' } })
+  map.addLayer({
+    id: 'pads',
+    type: 'fill',
+    source: 'pads',
+    paint: {
+      'fill-color': ['interpolate', ['linear'], ['get', 'depthFt'], 0, '#f7ecd9', 2, '#f2c98f', 6, '#d9822b', 12, '#8c3b12'],
+      'fill-opacity': 0.9,
+      'fill-outline-color': '#6b4a2b',
+    },
+  })
   map.addLayer({
     id: 'houses',
     type: 'fill-extrusion',
@@ -197,6 +210,7 @@ function drawSlope() {
   const H = g.height * cellSize(g)
   const coords = [fromLocal(g, [0, 0]), fromLocal(g, [W, 0]), fromLocal(g, [W, H]), fromLocal(g, [0, H])] as [LngLat, LngLat, LngLat, LngLat]
   const url = cv.toDataURL()
+  state.slopeUrl = url
   const s = map.getSource('slope') as ImageSource | undefined
   if (s) s.updateImage({ url, coordinates: coords })
   else {
@@ -232,27 +246,30 @@ function relayout() {
   const local = state.parcel.map((p) => toLocal(g, p))
   siteStats = slopeTable(local)
   const num = (id: string) => Number(($(id) as HTMLInputElement).value)
-  const lots = packLots(local, { width: g.width, height: g.height, cell: cellSize(g), classes: state.classes }, {
+  const cg = { width: g.width, height: g.height, cell: cellSize(g), classes: state.classes }
+  const params = {
     minLotAcres: Math.max(0.05, num('i-lot')),
     setbackM: num('i-setback') * M_PER_FT,
     padW: num('i-padw') * M_PER_FT,
     padD: num('i-padd') * M_PER_FT,
     minBuildableShare: 0.9,
-  })
-  const area = cellSize(g) ** 2
-  state.pads = lots.map((lot) => ({ lot, ew: padEarthwork(cellsInRing(g, lot.pad).map((i) => g.data[i]!), area) }))
+  }
+  const fit = ($('i-fit') as HTMLInputElement).checked
+  const northCount = fit ? packLots(local, cg, params).length : 0
+  const chosen = fit ? bestLayout(local, cg, params) : { angle: 0, lots: packLots(local, cg, params) }
+  const lots = chosen.lots
+  state.gridAngle = chosen.angle
+  state.northLots = fit ? northCount : lots.length
+  state.pads = lots.map((lot) => ({ lot, ew: padEarthworkOnGrid(g, lot.pad) }))
   const ll = (r: Ring) => r.map((p) => fromLocal(g, p))
   src('lots')?.setData({ type: 'FeatureCollection', features: lots.map((l) => poly(ll(l.lot), { id: l.id })) })
-  src('pads')?.setData({ type: 'FeatureCollection', features: lots.map((l) => poly(ll(l.pad), { id: l.id })) })
-  src('houses')?.setData({
+  src('pads')?.setData({
     type: 'FeatureCollection',
-    features: lots.map((l) => {
-      const [cx, cy] = l.center
-      const w = num('i-padw') * M_PER_FT * 0.6
-      const d = num('i-padd') * M_PER_FT * 0.6
-      return poly(ll(rect(cx - w / 2, cy - d / 2, w, d)), { id: l.id })
-    }),
+    features: state.pads.map(({ lot, ew }) =>
+      poly(ll(lot.pad), { id: lot.id, depthFt: ft(Math.max(ew.maxCut, ew.maxFill)), net: ew.fillCY - ew.cutCY }),
+    ),
   })
+  src('houses')?.setData({ type: 'FeatureCollection', features: lots.map((l) => poly(ll(l.house), { id: l.id })) })
   layoutTable()
   if (!state.section || state.isExample) state.section = defaultSection()
   drawSection()
@@ -274,7 +291,10 @@ function layoutTable() {
         <div class="tile"><span>Lots</span><b class="num">${rows.length}</b></div>
         <div class="tile"><span>Cut</span><b class="num">${n0(cut)} CY</b></div>
         <div class="tile"><span>Fill</span><b class="num">${n0(fill)} CY</b></div>
-      </div>`
+      </div>
+      <p class="fine">Grid turned ${n0((state.gridAngle * 180) / Math.PI)} degrees from north${
+        state.northLots !== rows.length ? ` (a north-aligned grid fits ${state.northLots} lots)` : ''
+      }. Pad color: deepest cut or fill under the pad, light under 2 ft, dark over 6 ft.</p>`
     : '<p class="warnline">No lot fits on buildable ground with these inputs. Try a smaller lot, smaller pad or smaller setback.</p>'
   $('lot-table').innerHTML = rows.length
     ? `<thead><tr><th>Lot</th><th>Pad grade (ft)</th><th>Cut CY</th><th>Fill CY</th><th>Deepest cut / fill (ft)</th><th>Flat share</th></tr></thead><tbody>${rows
@@ -291,16 +311,33 @@ function layoutTable() {
 function defaultSection(): [LngLat, LngLat] {
   const g = state.grid!
   const local = state.parcel.map((p) => toLocal(g, p))
-  const xs = local.map((p) => p[0])
-  const ys = local.map((p) => p[1])
-  const pads = state.pads.map((p) => p.lot.center)
-  const midY = pads.length ? pads.reduce((s, p) => s + p[1], 0) / pads.length : (Math.min(...ys) + Math.max(...ys)) / 2
-  const wide = Math.max(...xs) - Math.min(...xs) >= Math.max(...ys) - Math.min(...ys)
-  if (!wide) {
-    const midX = pads.length ? pads.reduce((s, p) => s + p[0], 0) / pads.length : (Math.min(...xs) + Math.max(...xs)) / 2
-    return [fromLocal(g, [midX, Math.min(...ys) - 20]), fromLocal(g, [midX, Math.max(...ys) + 20])]
+  // Run the line along the lot rows (or across them, whichever way the boundary is longer)
+  // through the row that holds the most pads.
+  const a = state.gridAngle
+  const dirs: XY[] = [
+    [Math.cos(a), Math.sin(a)],
+    [-Math.sin(a), Math.cos(a)],
+  ]
+  const span = (d: XY) => {
+    const v = local.map((p) => p[0] * d[0] + p[1] * d[1])
+    return [Math.min(...v), Math.max(...v)] as const
   }
-  return [fromLocal(g, [Math.min(...xs) - 20, midY]), fromLocal(g, [Math.max(...xs) + 20, midY])]
+  const [d, n] = span(dirs[0]!)[1] - span(dirs[0]!)[0] >= span(dirs[1]!)[1] - span(dirs[1]!)[0] ? [dirs[0]!, dirs[1]!] : [dirs[1]!, dirs[0]!]
+  const pads = state.pads.map((p) => p.lot.center)
+  const across = pads.map((p) => p[0] * n[0] + p[1] * n[1])
+  let off = (span(n)[0] + span(n)[1]) / 2
+  if (pads.length) {
+    const rows = new Map<number, number[]>()
+    for (const v of across) {
+      const k = Math.round(v / 10)
+      rows.set(k, [...(rows.get(k) ?? []), v])
+    }
+    const best = [...rows.values()].sort((x, y) => y.length - x.length)[0]!
+    off = best.reduce((s, v) => s + v, 0) / best.length
+  }
+  const [lo, hi] = span(d)
+  const at = (t: number): XY => [d[0] * t + n[0] * off, d[1] * t + n[1] * off]
+  return [fromLocal(g, at(lo - 20)), fromLocal(g, at(hi + 20))]
 }
 
 function drawSection() {
@@ -557,6 +594,7 @@ function renderMoney() {
         <tr class="tot"><td>Total</td><td class="num">${usd(usesTotal)}</td></tr></table></div>
       <div><h4>Sources</h4><table><tr><td>Equity (cash in)</td><td class="num">${usd(r.equity)}</td></tr><tr><td>Loan incl. interest</td><td class="num">${usd(r.loan)}</td></tr>
         <tr class="tot"><td>Total</td><td class="num">${usd(r.equity + r.loan)}</td></tr></table>
+        ${r.shortfall > 0 ? `<p class="fine bad">Sales do not repay the loan: equity pays another ${usd(r.shortfall)} at the end.</p>` : ''}
         <p class="fine">Selling costs of ${usd(r.sellingCosts)} come out of sale proceeds.</p></div>
     </div>
     ${per}`
@@ -580,6 +618,77 @@ function cashChart(r: Result) {
     <text class="ax" x="${L - 4}" y="${Y(0) + 4}" text-anchor="end">$0</text>
     ${bars}<text class="ax" x="${L}" y="${H - 3}">month 0</text><text class="ax" x="${W - 2}" y="${H - 3}" text-anchor="end">month ${v.length - 1}</text></svg>
     <p class="fine">Cumulative cash in and out for the investor. Red = cash still at risk. The lowest point is peak cash.</p>`
+}
+
+// ---------- site plan export ----------
+
+function planSvg(): string | null {
+  const g = state.grid
+  if (!g || !siteStats) return null
+  const local = state.parcel.map((p) => toLocal(g, p))
+  return sitePlanSvg({
+    title: state.isExample ? 'Example ridge site' : 'Site study',
+    boundaryNote: state.isExample ? 'Example boundary, not a real parcel' : 'Boundary drawn on a map, not surveyed',
+    parcel: local,
+    lots: state.pads.map(({ lot, ew }) => ({
+      id: lot.id,
+      lot: lot.lot,
+      pad: lot.pad,
+      house: lot.house,
+      padElevFt: ft(ew.padElev),
+      cutCY: ew.cutCY,
+      fillCY: ew.fillCY,
+      depthFt: ft(Math.max(ew.maxCut, ew.maxFill)),
+    })),
+    section: state.section ? [toLocal(g, state.section[0]), toLocal(g, state.section[1])] : null,
+    slopeImage: state.slopeUrl ? { href: state.slopeUrl, x: 0, y: 0, w: g.width * cellSize(g), h: g.height * cellSize(g) } : null,
+    stats: {
+      acres: acres(ringArea(local)),
+      buildableAcres: acres(siteStats.buildable),
+      meanSlope: siteStats.meanSlope,
+      cutCY: state.pads.reduce((s, p) => s + p.ew.cutCY, 0),
+      fillCY: state.pads.reduce((s, p) => s + p.ew.fillCY, 0),
+      gridAngleDeg: (state.gridAngle * 180) / Math.PI,
+      demSource: state.demSource,
+      date: new Date().toISOString().slice(0, 10),
+    },
+  })
+}
+
+function download(blob: Blob, name: string) {
+  const a = document.createElement('a')
+  a.href = URL.createObjectURL(blob)
+  a.download = name
+  a.click()
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000)
+}
+
+async function exportPlan(kind: 'svg' | 'png' | 'pdf') {
+  const svg = planSvg()
+  if (!svg) return setStatus('Wait for the analysis to finish first.')
+  if (kind === 'svg') return download(new Blob([svg], { type: 'image/svg+xml' }), 'site-plan.svg')
+  if (kind === 'pdf') {
+    const w = window.open('', '_blank')
+    if (!w) return setStatus('The browser blocked the print window. Allow pop-ups for this page.')
+    w.document.write(
+      `<!doctype html><title>Site plan</title><style>@page{size:landscape;margin:10mm}body{margin:0}svg{width:100%;height:auto}</style>${svg}`,
+    )
+    w.document.close()
+    w.addEventListener('load', () => w.print())
+    setTimeout(() => w.print(), 600)
+    return
+  }
+  const img = new Image()
+  img.src = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }))
+  await img.decode()
+  const cv = document.createElement('canvas')
+  cv.width = img.width * 2
+  cv.height = img.height * 2
+  const ctx = cv.getContext('2d')!
+  ctx.scale(2, 2)
+  ctx.drawImage(img, 0, 0)
+  URL.revokeObjectURL(img.src)
+  cv.toBlob((b) => b && download(b, 'site-plan.png'), 'image/png')
 }
 
 // ---------- drawing and inputs ----------
@@ -688,6 +797,9 @@ function wire() {
   $('draw').addEventListener('click', () => setMode(state.mode === 'parcel' ? 'none' : 'parcel'))
   $('finish').addEventListener('click', finishParcel)
   $('reset').addEventListener('click', () => setParcel(EXAMPLE, true))
+  $('plan-svg').addEventListener('click', () => void exportPlan('svg'))
+  $('plan-png').addEventListener('click', () => void exportPlan('png'))
+  $('plan-pdf').addEventListener('click', () => void exportPlan('pdf'))
   $('draw-section').addEventListener('click', () => setMode(state.mode === 'section' ? 'none' : 'section'))
   $('hide-section').addEventListener('click', () => {
     $('section').hidden = true
@@ -720,7 +832,7 @@ function wire() {
     setVis('topo', topo)
     setVis('imagery', !topo)
   })
-  for (const id of ['i-lot', 'i-setback', 'i-padw', 'i-padd']) $(id).addEventListener('change', relayout)
+  for (const id of ['i-lot', 'i-setback', 'i-padw', 'i-padd', 'i-fit']) $(id).addEventListener('change', relayout)
   $('sliders').addEventListener('input', (e) => {
     const t = e.target as HTMLInputElement
     const k = t.dataset.k as keyof Assumptions | undefined
@@ -772,4 +884,4 @@ map.on('load', () => {
 })
 
 // Exposed for screenshots and debugging only.
-;(window as unknown as { lf: unknown }).lf = { map, state, VIEWS }
+;(window as unknown as { lf: unknown }).lf = { map, state, VIEWS, planSvg }

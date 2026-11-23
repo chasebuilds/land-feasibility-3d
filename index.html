@@ -65,10 +65,16 @@
           <label>Pad width (ft)<input type="number" id="i-padw" value="60" min="20" step="5" /></label>
           <label>Pad depth (ft)<input type="number" id="i-padd" value="50" min="20" step="5" /></label>
         </div>
+        <label class="check"><input type="checkbox" id="i-fit" checked /> Turn the lot grid to fit the boundary (tries north, each edge and every 15 degrees)</label>
+        <div class="row btns plan-btns">
+          <button id="plan-svg">Site plan SVG</button>
+          <button id="plan-png">Site plan PNG</button>
+          <button id="plan-pdf">Print or save PDF</button>
+        </div>
         <div id="layout-summary"></div>
         <div class="scroll"><table id="lot-table"></table></div>
         <p class="fine">
-          Lots are squares of the minimum size on a grid turned to north. A pad goes in only where at least 90% of it is under
+          Lots are squares of the minimum size on a grid, turned to whichever angle fits the most lots. A pad goes in only where at least 90% of it is under
           15% slope. Each pad is set at the average ground under it, so cut about equals fill. Road frontage: every lot is
           assumed to front a new internal road. The road is not drawn, graded or costed here beyond the site work per lot.
         </p>

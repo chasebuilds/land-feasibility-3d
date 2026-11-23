@@ -462,3 +462,14 @@ svg .lbl {
     transition: none !important;
   }
 }
+
+.check {
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+  font-size: 12px;
+  margin: 4px 0 8px;
+}
+.plan-btns {
+  margin: 6px 0 4px;
+}

@@ -65,6 +65,8 @@ export interface Result {
   returnOnPeak: number
   equity: number
   loan: number
+  /** Loan left after all sales, paid from equity at the end. Not a source of funds. */
+  shortfall: number
   /** Cumulative equity cash position at the end of each month, month 0 first. */
   cumulative: number[]
 }
@@ -133,7 +135,7 @@ function flows(a: Assumptions, exit: ExitKey, adj: CaseAdj): { months: number; l
 export function runExit(a: Assumptions, exit: ExitKey, kase: CaseKey = 'base'): Result {
   const { months, list } = flows(a, exit, CASES[kase])
   const costs: Record<UseKey, number> = { land: 0, closing: 0, entitlement: 0, siteWork: 0, earthwork: 0, construction: 0 }
-  let loanBal = 0, loanDraws = 0, equityIn = 0, interest = 0, revenue = 0, selling = 0, cum = 0, peak = 0
+  let loanBal = 0, loanDraws = 0, equityIn = 0, shortfall = 0, interest = 0, revenue = 0, selling = 0, cum = 0, peak = 0
   const cumulative: number[] = []
   const rate = a.interestRate / 12
   for (let t = 0; t <= months; t++) {
@@ -164,7 +166,7 @@ export function runExit(a: Assumptions, exit: ExitKey, kase: CaseKey = 'base'): 
     }
     if (t === months && loanBal > 0) {
       cashT -= loanBal
-      equityIn += loanBal
+      shortfall += loanBal
       loanBal = 0
     }
     cum += cashT
@@ -185,6 +187,7 @@ export function runExit(a: Assumptions, exit: ExitKey, kase: CaseKey = 'base'): 
     peakCash: peak,
     returnOnPeak: peak ? profit / peak : 0,
     equity: equityIn,
+    shortfall,
     loan: loanDraws,
     cumulative,
   }
