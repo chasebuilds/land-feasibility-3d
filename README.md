@@ -7,7 +7,7 @@
 
 **Live demo:** https://chasebuilds.github.io/land-feasibility-3d/ (runs in the browser, no sign-up, no API keys)
 
-![3D view of the example ridge: slope heatmap, lots turned to the ridge, pads, house boxes and a cross-section](docs/overview.png)
+![Recorded from the live demo: the 3D terrain view turning around the example site with slope, lots and pads](docs/preview.webp)
 
 **Who it helps:** land buyers screening a tract before paying for a survey, small developers comparing exits, and realtors who want a clear visual for a listing. It is a screening tool, not engineering. The demo opens on an **invented example boundary** near Pikeville, Kentucky, labeled "example boundary, not a real parcel". No owner names or parcel records are used.
 
@@ -47,6 +47,8 @@ These are computed from public data for a made-up boundary. They describe nothin
 ![Pro forma comparing four exits](docs/proforma.png)
 
 ![Site facts panel](docs/facts.png)
+
+![3D view of the example ridge: slope heatmap, lots turned to the ridge, pads, house boxes and a cross-section](docs/overview.png)
 
 ## Run it
 
