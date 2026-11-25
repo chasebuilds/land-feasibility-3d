@@ -94,3 +94,11 @@ See [LIMITATIONS.md](LIMITATIONS.md). In short: first-pass screening only, not a
 ## License
 
 MIT. See [LICENSE](LICENSE).
+
+## More from Chase Builds
+
+- **[cost-approach-calculator](https://github.com/chasebuilds/cost-approach-calculator)**: Replacement cost, depreciation and land value, with every step shown. ([live demo](https://chasebuilds.github.io/cost-approach-calculator/))
+- **[field-service-pwa](https://github.com/chasebuilds/field-service-pwa)**: Phone app for crews: job tickets, photos, parts, time, customer signature and invoice. Works with no signal. ([live demo](https://chasebuilds.github.io/field-service-pwa/))
+- **[pc-build-planner](https://github.com/chasebuilds/pc-build-planner)**: A parts list for an office or CAD workstation where every part fits. ([live demo](https://chasebuilds.github.io/pc-build-planner/))
+
+[All projects, sorted by industry](https://github.com/chasebuilds) · [chasebuilds.github.io](https://chasebuilds.github.io)
